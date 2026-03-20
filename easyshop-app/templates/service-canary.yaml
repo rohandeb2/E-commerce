@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "easyshop-app.fullname" . }}-canary
+  labels:
+    {{- include "easyshop-app.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: {{ .Values.containerPort }}
+      protocol: TCP
+  selector:
+    app: {{ .Values.appName }}

@@ -1,0 +1,50 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: easyshop-platform
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: easyshop-platform
+    app.kubernetes.io/part-of: easyshop
+spec:
+  generators:
+    - list:
+        elements:
+          - env: staging
+            namespace: easyshop-staging
+            cluster: https://kubernetes.default.svc
+          - env: production
+            namespace: easyshop-prod
+            cluster: https://kubernetes.default.svc
+  template:
+    metadata:
+      name: 'easyshop-{{env}}' # Dynamically names the app: easyshop-staging / easyshop-production
+      labels:
+        app.kubernetes.io/name: easyshop
+        app.kubernetes.io/part-of: easyshop
+        environment: '{{env}}'
+    spec:
+      project: default
+      source:
+        repoURL: 'https://github.com/rohan/easyshop-manifests.git' # SSH access for security
+        targetRevision: HEAD
+        path: easyshop-app
+        helm:
+          valueFiles:
+            - values.yaml
+            - 'values-{{env}}.yaml' # Picks up env-specific values automatically
+      destination:
+        server: '{{cluster}}'
+        namespace: '{{namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true   # Automatically creates target namespace if missing
+          - PruneLast=true         # Safely deletes resources in the right order
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/template/spec/containers/0/image # Let CI/CD manage image updates

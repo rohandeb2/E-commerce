@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "easyshop-app.fullname" . }}-daily-cleanup
+spec:
+  schedule: "0 2 * * *"  # Runs every night at 2:00 AM
+  concurrencyPolicy: Forbid # Prevents a new job from starting if the old one is still running
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: {{ .Values.serviceAccount.name }}
+          containers:
+            - name: cleanup-task
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              command: ["npm", "run", "cleanup-old-carts"] # Example command
+              envFrom:
+                - configMapRef:
+                    name: {{ include "easyshop-app.fullname" . }}-config
+                - secretRef:
+                    name: {{ include "easyshop-app.fullname" . }}-secret
+              resources:
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+          restartPolicy: OnFailure

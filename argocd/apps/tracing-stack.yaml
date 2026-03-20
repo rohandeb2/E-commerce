@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tempo-stack
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: tempo
+    targetRevision: 1.10.1
+    helm:
+      values: |
+        tempo:
+          # --- Senior Move: High Availability & Persistence ---
+          replicas: 2
+          retention: 24h
+          
+          storage:
+            trace:
+              backend: s3 # Use S3 for 99.999999999% durability
+              s3:
+                bucket: easyshop-traces-prod # Update with your bucket name
+                endpoint: s3.us-east-1.amazonaws.com
+                region: us-east-1
+
+          # --- Critical: Receivers for Next.js OTel Data ---
+          receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: 0.0.0.0:4317
+                http:
+                  endpoint: 0.0.0.0:4318
+
+          # --- Senior Resource Management ---
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 1
+              memory: 2Gi
+
+          # --- Security & Anti-Affinity ---
+          podAntiAffinity: "hard"
+          serviceaccount:
+            create: true
+            name: tempo-sa
+            annotations:
+              eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/easyshop-tempo-irsa-role" # Update with your IRSA role ARN
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tracing
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

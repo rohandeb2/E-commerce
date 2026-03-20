@@ -1,0 +1,162 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 56.6.2
+    helm:
+      values: |
+        # 1. PROMETHEUS CORE (HA & Persistence)
+        prometheus:
+          prometheusSpec:
+            replicas: 2
+            retention: 15d
+            podAntiAffinity: "hard"
+            serviceMonitorSelectorNilUsesHelmValues: false
+            serviceMonitorSelector: {} # Discover all ServiceMonitors
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: 1
+                memory: 2Gi
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 50Gi
+
+          # 2. THE ALERTING SUITE (SRE Standard)
+          additionalPrometheusRulesMap:
+            easyshop-unified-alerts:
+              groups:
+                # --- Infrastructure (Nodes) ---
+                - name: node-health
+                  rules:
+                    - alert: NodeCPUHigh
+                      expr: 100 - (avg by(instance)(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+                      for: 5m
+                      labels: { severity: warning }
+                      annotations: { summary: "Node CPU > 85% on {{ $labels.instance }}" }
+                    - alert: NodeMemoryCritical
+                      expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) < 0.10
+                      for: 5m
+                      labels: { severity: critical }
+                      annotations: { summary: "Memory < 10% on {{ $labels.instance }}" }
+                    - alert: NodeDiskSpaceLow
+                      expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
+                      for: 10m
+                      labels: { severity: warning }
+                    - alert: NodeDown
+                      expr: up{job=~".*node-exporter.*"} == 0
+                      for: 1m
+                      labels: { severity: critical }
+
+                # --- Kubernetes Orchestration ---
+                - name: k8s-health
+                  rules:
+                    - alert: PodCrashLooping
+                      expr: increase(kube_pod_container_status_restarts_total{namespace=~"easyshop-.*"}[10m]) > 3
+                      for: 5m
+                      labels: { severity: critical }
+                    - alert: HpaMaxedOut
+                      expr: kube_horizontalpodautoscaler_status_current_replicas == kube_horizontalpodautoscaler_spec_max_replicas
+                      for: 15m
+                      labels: { severity: warning }
+
+                # --- Application (RED Method for Next.js) ---
+                - name: app-health
+                  rules:
+                    - alert: HighErrorRate
+                      # Matches prom-client labels
+                      expr: (sum(rate(http_request_total{statuscode=~"5..",namespace=~"easyshop-.*"}[5m])) / sum(rate(http_request_total{namespace=~"easyshop-.*"}[5m]))) > 0.05
+                      for: 2m
+                      labels: { severity: critical }
+                      annotations: { summary: "Error rate for {{ $labels.service }} is > 5%" }
+                    - alert: HighRequestLatency
+                      expr: histogram_quantile(0.99, sum by (le, service) (rate(http_request_duration_seconds_bucket{namespace=~"easyshop-.*"}[5m]))) > 2
+                      for: 5m
+                      labels: { severity: warning }
+
+                # --- Database (DocumentDB/Postgres) ---
+                - name: db-health
+                  rules:
+                    - alert: DatabaseConnectionsHigh
+                      expr: db_connections_active > 90
+                      for: 5m
+                      labels: { severity: warning }
+
+                # --- Reliability (SLO Error Budget) ---
+                - name: reliability-slo
+                  rules:
+                    - alert: SloErrorBudgetBurnHigh
+                      # Alerts if 99.9% SLO is burning 10x faster than monthly allowance
+                      expr: (sum(rate(http_request_total{statuscode=~"5.."}[1h])) / sum(rate(http_request_total[1h]))) > (1 - 0.999) * 10
+                      for: 5m
+                      labels: { severity: critical }
+
+        # 3. GRAFANA (Visualization)
+        grafana:
+          enabled: true
+          adminPassword: "prom-operator"
+          persistence:
+            enabled: true
+            size: 10Gi
+          additionalDataSources:
+            - name: Loki
+              type: loki
+              url: http://loki.logging.svc.cluster.local:3100
+              access: proxy
+            - name: Tempo
+              type: tempo
+              url: http://tempo.tracing.svc.cluster.local:3100
+              access: proxy
+              # Senior Move: Enable "Derived Fields" to link Logs to Traces
+              jsonData:
+                lokiSearch:
+                  datasourceUid: 'loki'
+                tracesToLogs:
+                  datasourceUid: 'loki'
+          sidecar:
+            dashboards:
+              enabled: true
+              label: grafana_dashboard
+
+        # 4. ALERTMANAGER (Notifications)
+        alertmanager:
+          enabled: true
+          alertmanagerSpec:
+            replicas: 2
+          config:
+            global:
+              resolve_timeout: 5m
+            route:
+              group_by: ['alertname']
+              group_wait: 30s
+              group_interval: 5m
+              repeat_interval: 4h
+              receiver: 'slack-notifications'
+            receivers:
+              - name: 'slack-notifications'
+                slack_configs:
+                  - channel: '#alerts'
+                    send_resolved: true
+                    api_url: 'https://hooks.slack.com/services/XXXXX' # Placeholder for your documentation
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

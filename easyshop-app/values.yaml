@@ -1,0 +1,147 @@
+appName: easyshop-frontend
+containerPort: 3000
+replicaCount: 1
+environment: default
+
+image:
+  repository: 123456789012.dkr.ecr.us-east-1.amazonaws.com/easyshop
+  tag: v1.0.0
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+serviceAccount:
+  create: true
+  name: easyshop-sa
+  iamRoleArn: ""
+
+ingress:
+  enabled: true
+  host: localhost
+  acmArn: ""
+  wafArn: ""
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+hpa:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPU: 70
+  targetMemory: 80
+
+externalSecrets:
+  enabled: true
+  awsSecretName: default-secret
+  authSecretName: default-auth
+
+aws:
+  region: us-east-1
+
+serviceMonitor:
+  enabled: true
+
+  port: http
+  path: /api/metrics
+
+  interval: 30s
+  scrapeTimeout: 10s
+
+  scheme: http
+
+  additionalLabels:
+    release: prometheus-stack
+
+  metricRelabelings: []
+  relabelings: []
+
+  tlsConfig: {}
+  
+  
+  # # --- Application Metadata ---
+  # appName: easyshop-frontend
+  # replicaCount: 3
+  # containerPort: 3000
+
+  # # --- Container Image ---
+  # image:
+  #   repository: 123456789012.dkr.ecr.us-east-1.amazonaws.com/easyshop
+  #   tag: "v1.0.0"
+  #   pullPolicy: IfNotPresent
+
+  # # --- Security & Identity (IRSA) ---
+  # serviceAccount:
+  #   create: true
+  #   name: easyshop-sa 
+  #   iamRoleArn: "arn:aws:iam::123456789012:role/easyshop-app-irsa-role"
+
+  # # --- Networking ---
+  # service:
+  #   type: ClusterIP
+  #   port: 80
+
+  # ingress:
+  #   enabled: true
+  #   host: rohandevops.co.in
+  #   acmArn: "arn:aws:acm:us-east-1:123456789012:certificate/..."
+  #   wafArn: "arn:aws:wafv2:us-east-1:123456789012:regional/webacl/..."
+
+
+  # # --- Resource Management ---
+  # resources:
+  #   requests:
+  #     cpu: 250m
+  #     memory: 256Mi
+  #   limits:
+  #     cpu: 1
+  #     memory: 1Gi
+
+  # # --- Scaling (HPA) ---
+  # hpa:
+  #   enabled: true
+  #   minReplicas: 3
+  #   maxReplicas: 10
+  #   targetCPU: 70
+  #   targetMemory: 80
+
+  # # --- Advanced Scheduling (The "Industry" Part) ---
+  # affinity: 
+  #   podAntiAffinity:
+  #     requiredDuringSchedulingIgnoredDuringExecution:
+  #       - labelSelector:
+  #           matchExpressions:
+  #             - key: app
+  #               operator: In
+  #               values:
+  #                 - easyshop-frontend
+  #         topologyKey: "kubernetes.io/hostname"
+
+  # tolerations:
+  #   - key: "dedicated"
+  #     operator: "Equal"
+  #     value: "app-nodes"
+  #     effect: "NoSchedule"
+
+  # config:
+  #   dbName: "easyshop_db"
+  #   logLevel: "info"
+  #   s3BucketName: "rohandevops-assets-prod"
+  #   featureFlagNewUI: "false"
+
+
+  # externalSecrets:
+  #   enabled: true
+  #   awsSecretName: "easyshop/production/docdb"
+  #   authSecretName: "easyshop/production/auth" # Store your NextAuth/JWT secrets here in AWS
+
+
+  # aws:
+  #   region: "us-east-1"  

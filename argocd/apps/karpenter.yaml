@@ -1,0 +1,65 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: karpenter
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://charts.karpenter.sh
+    chart: karpenter
+    targetRevision: 0.35.0
+
+    helm:
+      values: |
+        settings:
+          clusterName: "easyshop-eks-prod"
+          interruptionQueue: "KarpenterInterruptionQueue"
+
+        serviceAccount:
+          create: true
+          name: karpenter
+          annotations:
+            eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/KarpenterControllerRole"
+
+        controller:
+          replicas: 2
+
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1
+              memory: 1Gi
+
+          nodeSelector:
+            intent: "control-plane"
+
+          tolerations:
+            - key: "CriticalAddonsOnly"
+              operator: "Exists"
+            - key: "node-role.kubernetes.io/master"
+              operator: "Exists"
+              effect: "NoSchedule"
+
+        podDisruptionBudget:
+          maxUnavailable: 1
+
+        logLevel: info
+
+        serviceMonitor:
+          enabled: true
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: karpenter
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true

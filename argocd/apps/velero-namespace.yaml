@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: velero
+  labels:
+    # --- Standard Identification Labels ---
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/instance: backup-manager
+    app.kubernetes.io/component: disaster-recovery
+    app.kubernetes.io/part-of: admin-tools
+    
+    # --- Monitoring & Observability ---
+    # Tells Prometheus to automatically start scraping metrics from the Velero pod
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8085"
+    
+    # --- Security & Policy Enforcement ---
+    # Used by NetworkPolicies to allow/deny traffic
+    tier: infrastructure
+    security-zone: management
+    
+  annotations:
+    # Documentation link for On-Call Engineers
+    home.easyshop.io/runbook: "https://wiki.rohandevops.co.in/dr/velero-recovery"
+    # Description for anyone running 'kubectl describe'
+    description: "Dedicated namespace for cluster-wide backups and EBS snapshots via Velero"
+    
+    # --- Resource Management ---
+    # Senior Tip: Helps in multi-tenant clusters to ensure infra tools stay on infra nodes
+    openshift.io/node-selector: "node-role.kubernetes.io/infra="

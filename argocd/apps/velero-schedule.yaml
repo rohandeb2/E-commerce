@@ -1,0 +1,43 @@
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: easyshop-prod-hourly
+  namespace: velero
+  labels:
+    app.kubernetes.io/name: velero
+    app.kubernetes.io/component: backup-schedule
+    # Allows for cost-center tracking
+    environment: production
+    backup-tier: critical
+spec:
+  # --- 12 LPA Logic: The RPO (Recovery Point Objective) ---
+  # Cron expression: Run every hour on the hour
+  schedule: "0 * * * *"
+  
+  template:
+    # --- Data Lifecycle: The TTL (Time To Live) ---
+    # How long to keep the backup before auto-deleting (Industry standard: 30 days)
+    # 720h = 30 days. Prevents S3 storage costs from exploding.
+    ttl: 720h0m0s
+    
+    # Specific namespace created by your ApplicationSet
+    includedNamespaces:
+      - easyshop-prod
+      
+    # Do not back up the 'kube-system' or logs to save space/time
+    excludedResources:
+      - events
+      - events.events.k8s.io
+      
+    # --- Storage & Snapshots ---
+    # This triggers the AWS EBS CSI driver to take an actual disk snapshot
+    snapshotVolumes: true
+    
+    # Use the S3 bucket defined in your BackupStorageLocation
+    storageLocation: default
+    
+    # Label the resulting Backup objects for easy searching in the CLI
+    labels:
+      velero.io/schedule: easyshop-prod-hourly
+      backup-cycle: hourly
+      retention: "30-days"

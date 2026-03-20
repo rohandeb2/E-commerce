@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # 1. Database Tier
+  mongodb:
+    image: mongo:7.0
+    container_name: easyshop_db
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    # Industry Standard: Healthchecks ensure the DB is actually ready to accept connections
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - easyshop_network
+
+  # 2. Migration Tier (The 'Init' Logic)
+  migration:
+    build:
+      context: .
+      dockerfile: Dockerfile.migration
+    container_name: easyshop_migrator
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/easyshop
+    # Logic: Only run migration once the DB is HEALTHY, not just "started"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - easyshop_network
+
+  # 3. Application Tier
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: easyshop_app
+    ports:
+      - "3000:3000"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/easyshop
+      - NEXTAUTH_SECRET=pRoDuCtIoN_SeCrEt_123 # Should be in .env in reality
+      - NEXTAUTH_URL=http://localhost:3000
+    # Logic: Only start the app after migration finishes successfully
+    depends_on:
+      migration:
+        condition: service_completed_successfully
+    networks:
+      - easyshop_network
+
+# Named volumes for data persistence
+volumes:
+  mongodb_data:
+
+# Isolated bridge network for security
+networks:
+  easyshop_network:
+    driver: bridge

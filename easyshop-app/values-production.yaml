@@ -1,0 +1,19 @@
+environment: production
+replicaCount: 5
+
+ingress:
+  host: rohandevops.co.in
+  # Senior Move: Prod usually has different ARN for SSL/WAF
+  acmArn: "arn:aws:acm:us-east-1:12345:certificate/prod-cert"
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi # Higher reservation for stability
+  limits:
+    cpu: 1
+    memory: 1Gi
+
+externalSecrets:
+  awsSecretName: easyshop/production/docdb
+  authSecretName: easyshop/production/auth

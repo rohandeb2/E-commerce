@@ -1,0 +1,28 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: easyshop-gateway
+  namespace: istio-ingress
+spec:
+  selector:
+    istio: ingressgateway
+
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "rohandevops.co.in"
+    tls:
+      httpsRedirect: true
+
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    hosts:
+    - "rohandevops.co.in"
+    tls:
+      mode: SIMPLE
+      credentialName: easyshop-tls

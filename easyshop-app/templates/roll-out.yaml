@@ -1,0 +1,98 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: {{ include "easyshop-app.fullname" . }}
+  labels:
+    {{- include "easyshop-app.labels" . | nindent 4 }}
+spec:
+  # Senior Move: Replicas managed by HPA in production, but defined here for safety
+  replicas: {{ .Values.replicaCount }}
+  
+  # How many old versions to keep for instant rollback
+  revisionHistoryLimit: 5
+  
+  # --- 12 LPA Strategy: The Canary Flow ---
+  strategy:
+    canary:
+      # Links to your specific Services for traffic splitting
+      canaryService: {{ include "easyshop-app.fullname" . }}-canary
+      stableService: {{ include "easyshop-app.fullname" . }}-stable
+      trafficRouting:
+        alb:
+          ingress: {{ include "easyshop-app.fullname" . }}
+          servicePort: 80
+      steps:
+        - setWeight: 10
+        - pause: { duration: 5m }
+        # The 'Judge': Runs the Prometheus analysis we built earlier
+        - analysis:
+            templates:
+              - templateName: success-rate-check
+            args:
+              - name: app-name
+                value: {{ .Values.appName }}
+        - setWeight: 50
+        - pause: { duration: 10m }
+        - setWeight: 100
+
+  selector:
+    matchLabels:
+      app: {{ .Values.appName }}
+      
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.appName }}
+    spec:
+      # --- Security: Same as your original, ensuring non-root execution ---
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 3000
+        fsGroup: 2000
+        runAsNonRoot: true
+        
+      containers:
+        - name: {{ .Values.appName }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort }}
+          
+          # Probes tuned for faster detection during Rollouts
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+            
+          envFrom:
+            - configMapRef:
+                name: {{ include "easyshop-app.fullname" . }}-config
+            - secretRef:
+                name: {{ include "easyshop-app.fullname" . }}-secret
+
+      # --- High Availability: Anti-Affinity ensures pods are on different nodes ---
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - {{ .Values.appName }}
+              topologyKey: "kubernetes.io/hostname"

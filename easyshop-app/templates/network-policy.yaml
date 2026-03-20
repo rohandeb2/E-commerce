@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "easyshop-app.fullname" . }}-allow-lb
+  labels:
+    app: {{ .Values.appName }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+
+# ... metadata same as yours ...
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .Values.appName }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+       - ipBlock:
+          cidr: 0.0.0.0/0
+        # - namespaceSelector:
+        #     matchLabels:
+        #       elbv2.k8s.aws/pod-readiness-gate-inject: enabled
+      ports:
+        - protocol: TCP
+          port: {{ .Values.containerPort }}
+  egress:
+    - to:
+        - namespaceSelector: {} 
+      ports:
+        - protocol: UDP
+          port: 53  # CRITICAL: Allow DNS resolution
+        - protocol: TCP
+          port: 53  # CRITICAL: Allow DNS resolution
+        - protocol: TCP
+          port: 443 # Allow HTTPS (S3, SNS APIs)
+        - protocol: TCP
+          port: 27017 # Allow DocumentDB (Default Port)

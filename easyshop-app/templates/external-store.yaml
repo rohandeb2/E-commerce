@@ -1,0 +1,51 @@
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: {{ include "easyshop-app.fullname" . }}-db-secret
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: {{ include "easyshop-app.fullname" . }}-aws-store
+    kind: SecretStore
+  target:
+    name: {{ include "easyshop-app.fullname" . }}-secret
+    creationPolicy: Owner
+    # 12 LPA Trick: Construct the URI so your code doesn't have to change
+    # template:
+    #   data:
+    #     MONGODB_URI: "mongodb://{{ .data.username }}:{{ .data.password }}@{{ .data.host }}:27017/{{ .data.dbname }}?ssl=true&replicaSet=rs0&readPreference=secondaryPreferred&retryWrites=false"
+    #     NEXTAUTH_SECRET: "{{ .data.nextauth_secret }}"
+    #     JWT_SECRET: "{{ .data.jwt_secret }}"
+    template:
+      data:
+        # Access keys directly by the name defined in the 'data' section below
+        MONGODB_URI: "mongodb://{{ .username }}:{{ .password }}@{{ .host }}:27017/{{ .dbname }}?ssl=true&replicaSet=rs0&readPreference=secondaryPreferred&retryWrites=false"
+        NEXTAUTH_SECRET: "{{ .nextauth_secret }}"
+        JWT_SECRET: "{{ .jwt_secret }}"
+  data:
+    # Database Keys from AWS Secret Manager
+    - secretKey: username
+      remoteRef:
+        key: {{ .Values.externalSecrets.awsSecretName }}
+        property: username
+    - secretKey: password
+      remoteRef:
+        key: {{ .Values.externalSecrets.awsSecretName }}
+        property: password
+    - secretKey: host
+      remoteRef:
+        key: {{ .Values.externalSecrets.awsSecretName }}
+        property: host
+    - secretKey: dbname
+      remoteRef:
+        key: {{ .Values.externalSecrets.awsSecretName }}
+        property: dbname
+    # Auth Keys from AWS Secret Manager
+    - secretKey: nextauth_secret
+      remoteRef:
+        key: {{ .Values.externalSecrets.authSecretName }}
+        property: nextauth_secret
+    - secretKey: jwt_secret
+      remoteRef:
+        key: {{ .Values.externalSecrets.authSecretName }}
+        property: jwt_secret

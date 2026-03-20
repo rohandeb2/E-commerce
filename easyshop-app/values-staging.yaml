@@ -1,0 +1,10 @@
+environment: staging
+replicaCount: 2
+
+ingress:
+  host: staging.rohandevops.co.in
+
+# Staging keeps the lower resources from the base values.yaml
+externalSecrets:
+  awsSecretName: easyshop/staging/docdb
+  authSecretName: easyshop/staging/auth

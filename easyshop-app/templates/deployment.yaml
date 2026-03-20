@@ -1,0 +1,74 @@
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: {{ include "easyshop-app.fullname" . }}
+#   labels:
+#     app: {{ .Values.appName }}
+#     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+#     release: {{ .Release.Name }}
+#     heritage: {{ .Release.Service }}
+# spec:
+#   replicas: {{ .Values.replicaCount }}
+#   selector:
+#     matchLabels:
+#       app: {{ .Values.appName }}
+#   strategy:
+#     type: RollingUpdate
+#     rollingUpdate:
+#       maxSurge: 25%
+#       maxUnavailable: 25%
+#   template:
+#     metadata:
+#       labels:
+#         app: {{ .Values.appName }}
+#     spec:
+#       serviceAccountName: {{ .Values.serviceAccount.name }}
+#       securityContext:
+#         runAsUser: 1000
+#         runAsGroup: 3000
+#         fsGroup: 2000
+#         runAsNonRoot: true
+#       containers:
+#         - name: {{ .Values.appName }}
+#           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+#           imagePullPolicy: IfNotPresent
+#           ports:
+#             - containerPort: {{ .Values.containerPort }}
+#           livenessProbe:
+#             httpGet:
+#               path: /health
+#               port: {{ .Values.containerPort }}
+#             initialDelaySeconds: 30
+#             periodSeconds: 10
+#             timeoutSeconds: 5
+#             failureThreshold: 3
+#           readinessProbe:
+#             httpGet:
+#               path: /health
+#               port: {{ .Values.containerPort }}
+#             initialDelaySeconds: 5
+#             periodSeconds: 10
+#             timeoutSeconds: 3
+#             failureThreshold: 3
+#           resources:
+#             {{- toYaml .Values.resources | nindent 12 }}
+#           envFrom:
+#             - configMapRef:
+#                 name: {{ include "easyshop-app.fullname" . }}-config
+#             - secretRef:
+#                 name: {{ include "easyshop-app.fullname" . }}-secret
+#           # Optional: Logging / Monitoring sidecar can be added here
+#       affinity:
+#         podAntiAffinity:
+#           requiredDuringSchedulingIgnoredDuringExecution:
+#             - labelSelector:
+#                 matchExpressions:
+#                   - key: app
+#                     operator: In
+#                     values:
+#                       - {{ .Values.appName }}
+#               topologyKey: "kubernetes.io/hostname"
+#       tolerations:
+#         - key: "node-role.kubernetes.io/master"
+#           operator: "Exists"
+#           effect: "NoSchedule"

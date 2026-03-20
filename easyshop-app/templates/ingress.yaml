@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "easyshop-app.fullname" . }}
+  labels:
+    {{- include "easyshop-app.labels" . | nindent 4 }}
+  annotations:
+    # KEEP these for ALB-specific behavior
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.acmArn }}
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/group.name: easyshop
+    # ... other ALB specific annotations ...
+spec:
+  # ✅ THE FIX: Use this instead of the 'kubernetes.io/ingress.class' annotation
+  ingressClassName: alb 
+  
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                # IMPORTANT: Point this to your STABLE service
+                name: {{ include "easyshop-app.fullname" . }}-stable
+                port:
+                  number: 80

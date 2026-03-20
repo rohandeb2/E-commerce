@@ -1,0 +1,28 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: easyshop-routing
+  namespace: easyshop-prod
+spec:
+  hosts:
+  - rohandevops.co.in
+
+  gateways:
+  - istio-ingress/easyshop-gateway
+
+  http:
+  - timeout: 5s
+    retries:
+      attempts: 3
+      perTryTimeout: 2s
+
+    route:
+    - destination:
+        host: easyshop-service-stable
+        subset: v1
+      weight: 90
+
+    - destination:
+        host: easyshop-service-canary
+        subset: v2
+      weight: 10

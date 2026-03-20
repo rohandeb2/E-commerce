@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate-check
+  namespace: argocd
+spec:
+  metrics:
+  - name: error-rate
+    interval: 2m
+    # 12 LPA Move: Allow 1 failure but rollback on the 2nd to avoid "flaky" network blips
+    failureLimit: 1
+    # Check that we actually have data AND the error rate is below 5%
+    successCondition: len(result) > 0 && result[0] < 0.05
+    provider:
+      prometheus:
+        # Ensure this DNS matches your actual Prometheus service installation
+        address: http://prometheus-operated.monitoring.svc.cluster.local:9090
+        query: |
+          sum(rate(http_requests_total{status=~"5.*", app_kubernetes_io_name="{{args.app-name}}"}[2m])) 
+          / 
+          (sum(rate(http_requests_total{app_kubernetes_io_name="{{args.app-name}}"}[2m])) + 0.001)
+    args:
+    - name: app-name

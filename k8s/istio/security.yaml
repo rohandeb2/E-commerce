@@ -1,0 +1,10 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  # 💡 Remove the namespace to make it Cluster-Wide, 
+  # OR set it to your app namespace
+  namespace: istio-system 
+spec:
+  mtls:
+    mode: STRICT # All pods in the mesh must now use mTLS
